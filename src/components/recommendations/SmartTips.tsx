@@ -1,15 +1,58 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   LightbulbIcon, ChevronRight, BatteryMedium, 
-  ThermometerSun, MapPin, Bell, Settings
+  ThermometerSun, MapPin, Bell, Settings,
+  Loader2
 } from 'lucide-react';
-import { recommendationsData } from '@/utils/dummyData';
+import { toast } from "@/components/ui/use-toast";
+import { supabase } from '@/integrations/supabase/client';
+
+interface Recommendation {
+  id: string;
+  type: string;
+  title: string;
+  description: string;
+  potential_savings: string;
+  priority: string;
+  is_implemented?: boolean;
+}
 
 const SmartTips = () => {
-  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   
-  const toggleExpand = (id: number) => {
+  useEffect(() => {
+    const fetchRecommendations = async () => {
+      try {
+        setIsLoading(true);
+        const { data, error } = await supabase
+          .from('recommendations')
+          .select('*')
+          .order('priority', { ascending: false });
+        
+        if (error) {
+          console.error('Error fetching recommendations:', error);
+          toast({
+            title: "Error fetching recommendations",
+            description: error.message,
+            variant: "destructive",
+          });
+        } else {
+          setRecommendations(data || []);
+        }
+      } catch (err) {
+        console.error('Unexpected error:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchRecommendations();
+  }, []);
+  
+  const toggleExpand = (id: string) => {
     setExpandedId(expandedId === id ? null : id);
   };
   
@@ -43,6 +86,28 @@ const SmartTips = () => {
     }
   };
   
+  if (isLoading) {
+    return (
+      <div className="glass-panel p-6 animate-fade-in flex justify-center items-center min-h-[200px]">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+  
+  if (recommendations.length === 0) {
+    return (
+      <div className="glass-panel p-6 animate-fade-in">
+        <div className="flex items-center mb-6">
+          <LightbulbIcon className="w-6 h-6 text-eco-yellow mr-2" />
+          <h2 className="text-2xl font-semibold">Smart Recommendations</h2>
+        </div>
+        <p className="text-muted-foreground text-center py-8">
+          No recommendations available at this time.
+        </p>
+      </div>
+    );
+  }
+  
   return (
     <div className="glass-panel p-6 animate-fade-in">
       <div className="flex items-center mb-6">
@@ -51,7 +116,7 @@ const SmartTips = () => {
       </div>
       
       <div className="space-y-4">
-        {recommendationsData.map((recommendation) => (
+        {recommendations.map((recommendation) => (
           <div 
             key={recommendation.id}
             className="bg-white/40 dark:bg-white/5 rounded-xl overflow-hidden transition-all duration-300 shadow-sm border border-white/30 dark:border-white/10"
@@ -73,7 +138,7 @@ const SmartTips = () => {
                       {recommendation.priority}
                     </span>
                     <span className="text-xs text-muted-foreground ml-2">
-                      Potential savings: {recommendation.potentialSavings}
+                      Potential savings: {recommendation.potential_savings}
                     </span>
                   </div>
                 </div>

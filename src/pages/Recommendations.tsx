@@ -1,13 +1,53 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Header from '@/components/layout/Header';
 import SmartTips from '@/components/recommendations/SmartTips';
-import { MapPin, MessageSquare } from 'lucide-react';
-import { brakingZonesData } from '@/utils/dummyData';
+import { MapPin, MessageSquare, Loader2 } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from "@/components/ui/use-toast";
+
+interface BrakingZone {
+  id: string;
+  latitude: number;
+  longitude: number;
+  description: string;
+  potential_recovery: string;
+  recommendation: string;
+}
 
 const Recommendations = () => {
-  const [query, setQuery] = React.useState('');
-  const [showVoiceInterface, setShowVoiceInterface] = React.useState(false);
+  const [query, setQuery] = useState('');
+  const [showVoiceInterface, setShowVoiceInterface] = useState(false);
+  const [brakingZones, setBrakingZones] = useState<BrakingZone[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchBrakingZones = async () => {
+      try {
+        setIsLoading(true);
+        const { data, error } = await supabase
+          .from('braking_zones')
+          .select('*');
+        
+        if (error) {
+          console.error('Error fetching braking zones:', error);
+          toast({
+            title: "Error fetching braking zones",
+            description: error.message,
+            variant: "destructive",
+          });
+        } else {
+          setBrakingZones(data || []);
+        }
+      } catch (err) {
+        console.error('Unexpected error:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchBrakingZones();
+  }, []);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -35,27 +75,37 @@ const Recommendations = () => {
             Locations where maximum energy recovery is possible
           </p>
           
-          <div className="space-y-4">
-            {brakingZonesData.map((zone) => (
-              <div 
-                key={zone.id}
-                className="bg-white/40 dark:bg-white/5 rounded-xl p-4 border border-white/30 dark:border-white/10"
-              >
-                <div className="flex justify-between">
-                  <div>
-                    <h3 className="font-medium">{zone.description}</h3>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Potential recovery: <span className="text-eco-green font-medium">{zone.potentialRecovery}</span>
-                    </p>
+          {isLoading ? (
+            <div className="flex justify-center items-center min-h-[200px]">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : brakingZones.length === 0 ? (
+            <p className="text-muted-foreground text-center py-8">
+              No braking zones available at this time.
+            </p>
+          ) : (
+            <div className="space-y-4">
+              {brakingZones.map((zone) => (
+                <div 
+                  key={zone.id}
+                  className="bg-white/40 dark:bg-white/5 rounded-xl p-4 border border-white/30 dark:border-white/10"
+                >
+                  <div className="flex justify-between">
+                    <div>
+                      <h3 className="font-medium">{zone.description}</h3>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Potential recovery: <span className="text-eco-green font-medium">{zone.potential_recovery}</span>
+                      </p>
+                    </div>
+                    <button className="text-sm text-primary hover:underline">View on map</button>
                   </div>
-                  <button className="text-sm text-primary hover:underline">View on map</button>
+                  <p className="text-sm mt-3">
+                    <span className="font-medium">Tip:</span> {zone.recommendation}
+                  </p>
                 </div>
-                <p className="text-sm mt-3">
-                  <span className="font-medium">Tip:</span> {zone.recommendation}
-                </p>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
         
         {/* Voice Assistant Interface */}
